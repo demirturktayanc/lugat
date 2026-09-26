@@ -19,16 +19,35 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Kelime icerigini uret
-        run: python scripts/content/build_content.py
-      - name: Yazi tipini indir
-        run: python scripts/fetch_fonts.py
+
+      - name: Proje klasorunu bul
+        run: |
+          G=$(find . -name gradlew -not -path "./.git/*" | head -1)
+          if [ -z "$G" ]; then echo "gradlew bulunamadi. Repodaki dosyalar:"; find . -maxdepth 3 -not -path "./.git*"; exit 1; fi
+          echo "PROJ=$(dirname "$G")" >> "$GITHUB_ENV"
+          echo "Proje klasoru: $(dirname "$G")"; ls -la "$(dirname "$G")"
+
+      - name: Kelime icerigi
+        run: |
+          cd "$PROJ"
+          if [ -f scripts/content/build_content.py ]; then python scripts/content/build_content.py
+          else echo "Uretim betigi yok, hazir content.json kullanilacak"; fi
+          test -f app/src/main/assets/content.json || { echo "HATA: app/src/main/assets/content.json yok"; exit 1; }
+
+      - name: Yazi tipi (istege bagli)
+        run: |
+          cd "$PROJ"
+          if [ -f scripts/fetch_fonts.py ]; then python scripts/fetch_fonts.py; else echo "Font betigi yok, sistem fontu kullanilacak"; fi
+
       - uses: gradle/actions/setup-gradle@v4
+
       - name: APK derle
         run: |
+          cd "$PROJ"
           chmod +x gradlew
           ./gradlew --no-daemon assembleDebug
+
       - uses: actions/upload-artifact@v4
         with:
           name: lugat-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: ${{ env.PROJ }}/app/build/outputs/apk/debug/*.apk
